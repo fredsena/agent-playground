@@ -1,0 +1,149 @@
+import os
+import pathlib
+import re
+import time
+
+import requests
+from langchain.agents import create_agent
+from langchain.chat_models import init_chat_model
+from langchain_community.utilities import SQLDatabase
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+from langchain_core.tools import tool
+from langchain.agents import create_agent
+
+from langchain.agents.middleware import PIIMiddleware, SummarizationMiddleware
+
+from langchain_openai import ChatOpenAI
+from langgraph.checkpoint.memory import MemorySaver, InMemorySaver
+from typing import Literal
+from langchain.tools import tool
+
+from typing_extensions import NotRequired
+
+from langchain.tools.tool_node import ToolCallRequest
+from langchain.messages import ToolMessage
+from langgraph.types import Command
+from typing import Callable
+
+from langchain.agents.middleware import wrap_tool_call
+
+from langchain.agents.middleware import (
+    AgentMiddleware,
+    AgentState,
+    ModelRequest,
+    ModelResponse,
+)
+from langgraph.runtime import Runtime
+from typing import Any, Callable
+
+from rich.console import Console
+from rich.panel import Panel
+from rich.markdown import Markdown
+from rich.status import Status
+from rich.syntax import Syntax
+from rich.theme import Theme
+
+from prompt_toolkit import PromptSession
+from prompt_toolkit.history import FileHistory
+from prompt_toolkit.formatted_text import HTML
+
+from utils.llm import get_llm
+from utils.tools.filesystem import (
+    list_files,
+    read_file,    
+    find_file,
+    write_file,
+    create_folder,    
+)
+
+from utils.tools.filesystem import (
+    list_files_in_dir,
+    read_file_content,
+    write_results_file,
+    find_files
+)
+from utils.tools.planning import (
+    write_todos,
+    read_todos,
+    think
+)
+
+from utils.tools.get_web_links import get_web_links
+
+# Initialize Rich console with custom theme
+custom_theme = Theme({
+    "info": "cyan",
+    "warning": "yellow",
+    "error": "bold red",
+    "success": "bold green",
+    "bot": "bold cyan",
+    "user": "bold green"
+})
+console = Console(theme=custom_theme)
+
+llm = get_llm()
+
+agent = create_agent(
+    system_prompt="You are a helpful assistant.",
+    model=llm,
+    checkpointer=InMemorySaver(),
+    tools=[get_web_links, find_file,read_file,write_file,list_files,create_folder],   
+)
+
+thread_id = "conversation_1"
+
+console.print()
+
+console.print(Panel.fit(
+    "[bold cyan]🤖 AI Assistant Chat Bot[/bold cyan]\n\n"
+    "[dim]Features:[/dim]\n"
+    f"  • Powered by [green]{llm.model_name}[/green]\n"
+    "  • Terminal-like typing effects\n"
+    "  • File operations (find, read, write)\n"
+    "  • Web link search\n"
+    "  • Conversation history\n\n"
+    "[yellow]Type 'quit', 'exit', or 'bye' to end the conversation.[/yellow]",
+    border_style="cyan",
+    padding=(1, 2)
+))
+console.print()
+
+# Initialize prompt session with persistent history file
+history_file = pathlib.Path.home() / ".chat_history"
+session = PromptSession(history=FileHistory(str(history_file)))
+
+# Chat loop
+while True:
+    # Get user input with prompt_toolkit (supports arrow up/down history)
+    try:
+        user_input = session.prompt(HTML('\n<ansigreen><b>You:</b></ansigreen> ')).strip()
+    except (KeyboardInterrupt, EOFError):
+        console.print("\n[yellow]👋 Goodbye![/yellow]")
+        break
+    
+    # Check for exit commands
+    if user_input.lower() in ['quit', 'exit', 'bye', 'q']:
+        console.print("\n[bold yellow]👋 Thanks for chatting! Goodbye![/bold yellow]")
+        break
+    
+    # Skip empty inputs
+    if not user_input:
+        continue
+    
+    # Create human message
+    human_msg = HumanMessage(user_input)
+    
+    # Show status while AI is thinking
+    with console.status("[bold cyan]🤖 Thinking...", spinner="dots"):
+        # Invoke agent with thread configuration to maintain history
+        result = agent.invoke(
+            {"messages": [human_msg]},
+            config={"configurable": {"thread_id": thread_id}}
+        )
+    
+    # Get and display the AI's response with typing effect
+    ai_response = result["messages"][-1].content
+    console.print("\n[bold cyan]🤖 Bot:[/bold cyan] ", end="")    
+    console.print(Markdown(ai_response))
+
+console.print("\n")

@@ -1,0 +1,22 @@
+[project]
+name = "agent-playground"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "langgraph>=1.0.0",
+    "langchain>=1.0.0",
+    "langchain-openai>=1.0.0",
+    "langchain-community>=0.4.0",
+    "langgraph-cli[inmem]>=0.4.0",
+    "langchain-mcp-adapters",
+    "langchain-tavily",
+    "tavily-python",
+    "prompt_toolkit",
+    "rich",
+    "python-dotenv>=1.0.0",
+    "requests>=2.32.5",
+    "beautifulsoup4>=4.14.3",
+    "feedparser>=6.0.12",
+]
