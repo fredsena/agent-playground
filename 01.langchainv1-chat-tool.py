@@ -69,6 +69,7 @@ from utils.tools.planning import (
 )
 
 from utils.tools.get_web_links import get_web_links
+from utils.tools.get_web_data import get_web_data
 
 # Initialize Rich console with custom theme
 custom_theme = Theme({
@@ -87,7 +88,7 @@ agent = create_agent(
     system_prompt="You are a helpful assistant.",
     model=llm,
     checkpointer=InMemorySaver(),
-    tools=[get_web_links, find_file,read_file,write_file,list_files,create_folder],   
+    tools=[get_web_links, get_web_data, find_file,read_file,write_file,list_files,create_folder],
 )
 
 thread_id = "conversation_1"
@@ -108,8 +109,10 @@ console.print(Panel.fit(
 ))
 console.print()
 
-# Initialize prompt session with persistent history file
-history_file = pathlib.Path.home() / ".chat_history"
+# Initialize prompt session with persistent history file inside the project folder
+project_root = pathlib.Path(__file__).parent.resolve()
+history_file = project_root / ".chat_history"
+history_file.parent.mkdir(parents=True, exist_ok=True)  # Ensure directory exists
 session = PromptSession(history=FileHistory(str(history_file)))
 
 # Chat loop

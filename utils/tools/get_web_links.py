@@ -162,10 +162,7 @@ def get_web_links(query: str, max_results: int = 5) -> str:
     Args:
         query: The search query string.
         max_results: Maximum number of results to return. Defaults to 5.
-
     """
-    # searcher = FreeWebSearcher()
-    # results = searcher.search(query, max_results=max_results)
 
     """
     The primary method to perform a web search.
