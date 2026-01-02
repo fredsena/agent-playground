@@ -70,6 +70,8 @@ from utils.tools.planning import (
 
 from utils.tools.get_web_links import get_web_links
 from utils.tools.get_web_data import get_web_data
+from utils.tools.git_tools import git_command, git_status
+
 
 # Initialize Rich console with custom theme
 custom_theme = Theme({
@@ -88,7 +90,10 @@ agent = create_agent(
     system_prompt="You are a helpful assistant.",
     model=llm,
     checkpointer=InMemorySaver(),
-    tools=[get_web_links, get_web_data, find_file,read_file,write_file,list_files,create_folder],
+    tools=[get_web_links, get_web_data, 
+            find_file,read_file,write_file,
+            list_files,create_folder,
+            git_command, git_status],
 )
 
 thread_id = "conversation_1"
