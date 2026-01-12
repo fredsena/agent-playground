@@ -54,6 +54,7 @@ from utils.tools.filesystem import (
     find_file,
     write_file,
     create_folder,    
+    search_text_patterns,
 )
 
 from utils.tools.filesystem import (
@@ -71,6 +72,7 @@ from utils.tools.planning import (
 from utils.tools.get_web_links import get_web_links
 from utils.tools.get_web_data import get_web_data
 from utils.tools.git_tools import git_command, git_status
+from utils.tools.memory import clear_memory, set_memory_references, clear_all_memory
 
 
 # Initialize Rich console with custom theme
@@ -86,15 +88,32 @@ console = Console(theme=custom_theme)
 
 llm = get_llm()
 
+# Create checkpointer instance so we can reference it for clearing memory
+checkpointer = InMemorySaver()
+
+# IMPORTANT: When the clear_memory tool is used, you MUST:
+# 1. Treat everything as a completely NEW conversation
+# 2. Do NOT reference any prior information, names, topics, or context
+# 3. Respond as if meeting the user for the very first time
+# 4. Never say things like "Hello again" or use any previously mentioned names
+
+SYSTEM_PROMPT = """You are a helpful assistant."""
+
 agent = create_agent(
-    system_prompt="You are a helpful assistant.",
+    system_prompt=SYSTEM_PROMPT,
     model=llm,
-    checkpointer=InMemorySaver(),
+    checkpointer=checkpointer,
     tools=[get_web_links, get_web_data, 
             find_file,read_file,write_file,
             list_files,create_folder,
-            git_command, git_status],
+            git_command, git_status,
+            search_text_patterns,
+            clear_memory,  # Tool for AI to clear memory when asked
+        ],
 )
+
+# Set memory references so the clear_memory tool can access the checkpointer
+set_memory_references(checkpointer, "conversation_1")
 
 thread_id = "conversation_1"
 
@@ -108,7 +127,9 @@ console.print(Panel.fit(
     "  • File operations (find, read, write)\n"
     "  • Web link search\n"
     "  • Conversation history\n\n"
-    "[yellow]Type 'quit', 'exit', or 'bye' to end the conversation.[/yellow]",
+    "[yellow]Commands:[/yellow]\n"
+    "  • [cyan]/clear[/cyan] - Clear all memory and start fresh\n"
+    "  • [cyan]quit/exit/bye[/cyan] - End conversation",
     border_style="cyan",
     padding=(1, 2)
 ))
@@ -133,6 +154,17 @@ while True:
     if user_input.lower() in ['quit', 'exit', 'bye', 'q']:
         console.print("\n[bold yellow]👋 Thanks for chatting! Goodbye![/bold yellow]")
         break
+    
+    # Check for /clear command to clear memory
+    if user_input.lower() == '/clear':
+        result = clear_all_memory()
+        console.print()
+        console.rule("[bold magenta]🧹 Memory Cleared[/bold magenta]", style="magenta")
+        console.print("[bold green]✅ All conversation context has been erased![/bold green]")
+        console.print("[dim]Starting fresh - the AI will not remember anything from before.[/dim]")
+        console.rule(style="magenta")
+        console.print()
+        continue
     
     # Skip empty inputs
     if not user_input:

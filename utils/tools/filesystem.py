@@ -2,6 +2,7 @@ import os
 import pathlib
 from langchain_core.tools import tool
 from ..console import console
+import re
 
 @tool(
     "list_files_in_dir",
@@ -518,3 +519,168 @@ def create_folder(folder_path: str, create_parents: bool = True) -> str:
         raise PermissionError(f"Permission denied creating folder: {folder_path}")
     except OSError as e:
         raise OSError(f"Failed to create folder: {str(e)}")
+
+@tool(
+    "search_text_patterns",
+    parse_docstring=True,
+    description=(
+        "Search for text patterns (regex) within files or directories. "
+        "Works on Linux and Windows. Returns matching lines with file paths and line numbers."
+    ),
+)
+def search_text_patterns(
+    pattern: str, 
+    path: str = ".",
+    file_extension: str = "*",
+    case_sensitive: bool = False,
+    exclude_dirs: list[str] = None,
+    max_depth: int = 10,
+    max_files: int = 1000,
+    max_results: int = 100
+) -> str:
+    """Search for text patterns within files using regex.
+    
+    Args:
+        pattern (str): Regular expression pattern to search for.
+        path (str): File or directory path to search in. Defaults to current directory.
+        file_extension (str): File extension to filter by (e.g., '.py', '.txt'). 
+                            Use '*' to search all files.
+        case_sensitive (bool): Whether the search should be case-sensitive.
+        exclude_dirs (list[str]): List of directory names to exclude from search.
+                                 Defaults to common directories like .venv, .git, node_modules, etc.
+        max_depth (int): Maximum directory depth to search. Defaults to 10.
+        max_files (int): Maximum number of files to search. Defaults to 1000.
+        max_results (int): Maximum number of results to return. Defaults to 100.
+    
+    Returns:
+        str: Formatted results showing file paths, line numbers, and matching lines.
+        
+    Raises:
+        ValueError: If the pattern is invalid regex or path doesn't exist.
+    """
+    console.print("🔍 Invoking search text patterns tool")
+    
+    # Default directories to exclude (common in most projects)
+    default_exclude_dirs = {
+        '.venv', 'venv', '.env', 'env',  # Python virtual environments
+        '.git',  # Git directory
+        'node_modules',  # Node.js dependencies
+        '__pycache__', '.pytest_cache', '.mypy_cache',  # Python caches
+        '.tox', '.nox',  # Python test runners
+        'dist', 'build', '.eggs', '*.egg-info',  # Build artifacts
+        '.idea', '.vscode',  # IDE settings
+        'htmlcov', 'coverage',  # Coverage reports
+    }
+    
+    # Use provided exclude_dirs or defaults
+    if exclude_dirs is None:
+        exclude_set = default_exclude_dirs
+    else:
+        exclude_set = set(exclude_dirs)
+    
+    try:
+        # Compile regex pattern with case sensitivity option
+        flags = 0 if case_sensitive else re.IGNORECASE
+        compiled_pattern = re.compile(pattern, flags)
+    except re.error as e:
+        raise ValueError(f"Invalid regex pattern: {e}")
+    
+    # Convert string path to pathlib.Path for cross-platform compatibility
+    search_path = pathlib.Path(path).expanduser().resolve()
+    
+    if not search_path.exists():
+        raise ValueError(f"Path does not exist: {path}")
+    
+    results = []
+    files_searched = 0
+    max_files_reached = False
+    max_results_reached = False
+    
+    def should_exclude(file_path: pathlib.Path) -> bool:
+        """Check if any part of the path is in the exclude set."""
+        for part in file_path.parts:
+            if part in exclude_set:
+                return True
+            # Also check for glob patterns like *.egg-info
+            for excl_pattern in exclude_set:
+                if '*' in excl_pattern and pathlib.PurePath(part).match(excl_pattern):
+                    return True
+        return False
+    
+    def get_depth(file_path: pathlib.Path, base_path: pathlib.Path) -> int:
+        """Calculate directory depth relative to base path."""
+        try:
+            rel_path = file_path.relative_to(base_path)
+            return len(rel_path.parts) - 1  # -1 because we don't count the file itself
+        except ValueError:
+            return 0
+    
+    # Determine if we're searching a directory or file
+    if search_path.is_file():
+        # Search single file
+        try:
+            with open(search_path, 'r', encoding='utf-8', errors='ignore') as f:
+                for line_num, line in enumerate(f, 1):
+                    if compiled_pattern.search(line):
+                        results.append(f"{search_path}:{line_num}: {line.rstrip()}")
+                        if len(results) >= max_results:
+                            max_results_reached = True
+                            break
+        except Exception as e:
+            raise ValueError(f"Error reading file {search_path}: {e}")
+    
+    elif search_path.is_dir():
+        # Search directory recursively
+        # Build glob pattern based on file_extension
+        glob_pattern = f"**/*{file_extension}" if file_extension != "*" else "**/*"
+        
+        for file_path in search_path.glob(glob_pattern):
+            # Check if we've hit limits
+            if max_results_reached or max_files_reached:
+                break
+            
+            # Skip directories and hidden files
+            if file_path.is_dir() or file_path.name.startswith('.'):
+                continue
+            
+            # Skip excluded directories
+            if should_exclude(file_path):
+                continue
+            
+            # Check depth limit
+            depth = get_depth(file_path, search_path)
+            if depth > max_depth:
+                continue
+            
+            # Check files limit
+            files_searched += 1
+            if files_searched > max_files:
+                max_files_reached = True
+                break
+            
+            try:
+                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    for line_num, line in enumerate(f, 1):
+                        if compiled_pattern.search(line):
+                            results.append(f"{file_path}:{line_num}: {line.rstrip()}")
+                            if len(results) >= max_results:
+                                max_results_reached = True
+                                break
+            except Exception:
+                # Skip files that can't be read
+                continue
+    
+    # Format output
+    if not results:
+        return f"No matches found for pattern '{pattern}' in {search_path} (searched {files_searched} files)"
+    
+    output = f"Found {len(results)} matches (searched {files_searched} files):\n\n"
+    output += "\n".join(results)
+    
+    # Add limit warnings
+    if max_files_reached:
+        output += f"\n\n⚠️ Search stopped: reached max_files limit ({max_files}). Increase max_files to search more."
+    if max_results_reached:
+        output += f"\n\n⚠️ Search stopped: reached max_results limit ({max_results}). Increase max_results to see more."
+    
+    return output        
