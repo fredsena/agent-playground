@@ -14,3 +14,4 @@ wheels/
 
 # Chat history
 .chat_history
+.chat_history_mcp

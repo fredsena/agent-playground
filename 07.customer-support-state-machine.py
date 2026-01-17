@@ -14,7 +14,7 @@ from typing import Callable, Literal
 from typing_extensions import NotRequired
 
 from langchain.agents import AgentState, create_agent
-from langchain.agents.middleware import wrap_model_call, ModelRequest, ModelResponse, SummarizationMiddleware
+from langchain.agents.middleware import wrap_model_call, ModelRequest, ModelResponse, SummarizationMiddleware, TodoListMiddleware   
 from langchain.chat_models import init_chat_model
 from langchain.messages import HumanMessage, ToolMessage
 from langchain.tools import tool, ToolRuntime
@@ -208,6 +208,7 @@ agent = create_agent(
     state_schema=SupportState,
     middleware=[
         apply_step_config,
+        #TodoListMiddleware(),
         SummarizationMiddleware(
             model=model,
             trigger=("tokens", 4000),
