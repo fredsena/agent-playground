@@ -20,4 +20,5 @@ dependencies = [
     "beautifulsoup4>=4.14.3",
     "feedparser>=6.0.12",
     "trafilatura>=2.0.0",
+    "deepagents>=0.3.6",
 ]

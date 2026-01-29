@@ -40,9 +40,9 @@ from prompt_toolkit.history import FileHistory
 from prompt_toolkit.formatted_text import HTML
 
 from utils.tools.filesystem import (
-    # list_files,
-    # read_file,    
-    # find_file,
+    list_files,
+    read_file,    
+    find_file,
     write_file,
     # create_folder,    
     # search_text_patterns,
@@ -77,11 +77,17 @@ async def main():
             #     "transport": "streamable_http",
             #     "url": "https://mcp.kiwi.com"
             # },
-            "ai-context": {
+            # "ai-context": {
+            #     "transport": "stdio",
+            #     "command": "npx",
+            #     "args": ["@ai-coders/context@latest", "mcp"],
+            # },
+            "drift": {
                 "transport": "stdio",
                 "command": "npx",
-                "args": ["@ai-coders/context@latest", "mcp"],
+                "args": ["-y", "driftdetect-mcp@latest", "mcp"],
             },            
+
         },
     )
 
@@ -95,10 +101,9 @@ async def main():
     checkpointer = InMemorySaver()
 
     agent = create_agent(
-        system_prompt=f"You are a helpful assistant. IMPORTANT GUIDELINES FOR DATE-SENSITIVE OPERATIONS: - Today's date is: {today.strftime('%Y-%m-%d (%A, %B %d, %Y)')}
-        Use only tools to answer the user.",
+        system_prompt=f"You are a helpful assistant. IMPORTANT GUIDELINES FOR DATE-SENSITIVE OPERATIONS: - Today's date is: {today.strftime('%Y-%m-%d (%A, %B %d, %Y)')}. Use only tools to answer the user.",
         model=llm,
-        tools=[*mcp_tools,write_file],  # Unpack MCP tools and add find_file
+        tools=[*mcp_tools,write_file, read_file, find_file, list_files],  # Unpack MCP tools and add find_file
         # checkpointer=InMemorySaver(),  # OLD: inline checkpointer
         checkpointer=checkpointer,  # NEW: use variable for memory clearing
     )
